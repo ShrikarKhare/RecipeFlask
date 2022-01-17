@@ -30,7 +30,7 @@ def create_connection(path):
 def execute_query(connection, query, values = ()):
     try:
         if len(values) > 0:
-            connection.execute(query, values)
+            connection.execute(query, (values,))
         else:
             connection.execute(query)
         connection.commit()
@@ -72,11 +72,11 @@ def home():
 @app.route('/about/')
 def about():
     return render_template("about.html")
-@app.route('/recipe/delete/<id>/', methods=['POST'])
 
+@app.route('/recipe/delete/<id>/', methods=['POST'])
 def delete_recipe(id):
     delete_query = '''DELETE FROM recipes WHERE id = ?'''
-    execute_query(conn,delete_query,id)
+    execute_query(conn,delete_query,(id))
     return redirect(url_for('home'))
 
 @app.route('/recipe/', methods=['POST', 'GET'])
@@ -103,7 +103,7 @@ def show_recipe(id):
             title = form.title.data
             image = form.image.data
             link = form.link.data
-            update_query = '''UPDATE recipes set title=?, image=?, link=?'''
+            update_query = f'''UPDATE recipes set title=?, image=?, link=? WHERE id = {id}'''
             execute_query(conn, update_query, (title, image, link))
             return redirect(url_for('home'))
     select_query = f'''SELECT * FROM recipes WHERE id={id}'''
