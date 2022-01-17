@@ -46,15 +46,11 @@ CREATE TABLE IF NOT EXISTS recipes (
   link INTEGER NOT NULL
 );
 """
-def execute_read_query(connection, query, values = ()):
+def execute_read_query(connection, query):
     cursor = connection.cursor()
     result = None
-    print(values)
     try:
-        if len(values) > 0:
-            cursor.execute(query)
-        else:
-            cursor.execute(query)
+        cursor.execute(query)
         result = cursor.fetchall()
         return result
     except Error as e:
@@ -98,8 +94,8 @@ def create_recipe():
             return redirect(url_for('home'))
     return render_template('add_recipe.html', form=form) # return the form to the template
 
-@app.route('/recipe/<id>', methods=['POST', 'GET'])
-def edit_recipe(id):
+@app.route('/recipe/<id>', methods=['GET', 'POST'])
+def show_recipe(id):
     form = CreateRecipeForm()
     if request.method == 'POST':
         form = CreateRecipeForm(request.form)
@@ -108,12 +104,10 @@ def edit_recipe(id):
             image = form.image.data
             link = form.link.data
             update_query = '''UPDATE recipes set title=?, image=?, link=?'''
-            data = (title, image, link) 
-            execute_query(conn, update_query, data)
+            execute_query(conn, update_query, (title, image, link))
             return redirect(url_for('home'))
-    recipe = execute_read_query(
-        conn, '''SELECT * FROM recipes WHERE id=?''', (id))
-    
+    select_query = f'''SELECT * FROM recipes WHERE id={id}'''
+    recipe = execute_read_query(conn, select_query)
     form = CreateRecipeForm(link=recipe[0][3], title=recipe[0][1], image=recipe[0][2])
     return render_template('edit_recipe.html', form=form, id=id)
     
