@@ -161,10 +161,10 @@ def show_recipe(id):
     form = CreateRecipeForm(link=recipe[0][3], title=recipe[0][1], image=recipe[0][2])
     return render_template('edit_recipe.html', form=form, id=id)
     
-if __name__ == '__main__':
-  conn = create_connection('recipes.db')
-  
-  execute_query(conn,create_recipes_table)
-  execute_query(conn,create_user_table)
+# if __name__ == '__main__':
+conn = create_connection('recipes.db')
 
-  app.run(debug=True)
+execute_query(conn,create_recipes_table)
+execute_query(conn,create_user_table)
+
+#   app.run(debug=True)
