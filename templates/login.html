@@ -1,0 +1,15 @@
+{% extends "layout.html" %} 
+{% set active_page = "Login" %}
+{% block title %}RecipeFlask{% endblock %} 
+{% from "_formhelpers.html" import render_field %}
+{% block content %}
+<div class="container w-50 mt-3">
+    <form method="post" action= '/login'>
+      <dl>
+        {{ render_field(form.user, class="form-control") }}
+        {{ render_field(form.password, class="form-control") }}
+      </dl>
+      <button class="btn btn-primary" type=submit>Login</button>
+    </form>
+  </div>
+{% endblock %}

@@ -1,23 +1,10 @@
 from socket import create_connection
-from flask import Flask, render_template, request, redirect,url_for,abort
-from wtforms import Form, StringField, validators
+from flask import Flask, render_template, request, redirect,url_for,abort, make_response
+from wtforms import Form, StringField, PasswordField, validators
 import sqlite3
 from sqlite3 import Error
 app = Flask(__name__)
 
-
-recipes = [
-        {
-            "title": "BBQ Sweet and Sour Chicken Wings",
-            "image": "https://image.freepik.com/free-photo/chicken-wings-barbecue-sweetly-sour-sauce-picnic-summer-menu-tasty-food-top-view-flat-lay_2829-6471.jpg",
-            "link": "https://cookpad.com/us/recipes/347447-easy-sweet-sour-bbq-chicken"
-        },
-        {
-            "title": "Hot Chicken Wings",
-            "image": "https://image.freepik.com/free-photo/barbecue-chicken-wings-with-white-sesame_1339-98947.jpg",
-            "link": "https://cookpad.com/us/recipes/14731185-out-of-this-world-hot-wings"
-        }
-    ]
 def create_connection(path):
     connection = None
     try:
@@ -30,7 +17,7 @@ def create_connection(path):
 def execute_query(connection, query, values = ()):
     try:
         if len(values) > 0:
-            connection.execute(query, (values,))
+            connection.execute(query, values)
         else:
             connection.execute(query)
         connection.commit()
@@ -38,14 +25,35 @@ def execute_query(connection, query, values = ()):
     except Error as e:
         print(f"The error '{e}' occurred")
 
+
+class CreateRecipeForm(Form):
+    title = StringField('Recipe Title', [validators.Length(min=4, max=50)])
+    image = StringField('Image Address', [validators.Length(min=10)])
+    link = StringField('Link Address', [validators.Length(min=10)])
+
+class CreateLoginForm(Form):
+    user = StringField('User', [validators.Length(min=4, max = 50)])
+    password = PasswordField('Password', [validators.Length(min=4)])
+
+class RegistrationForm(Form):
+    user = StringField('User', [validators.length(min = 4, max = 50)])
+    password = PasswordField('Password', [validators.length(min = 4)])
+
 create_recipes_table = """
 CREATE TABLE IF NOT EXISTS recipes (
-  id INTEGER PRIMARY KEY,
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL,
   image BLOB NOT NULL,
   link INTEGER NOT NULL
 );
 """
+create_user_table = '''
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user TEXT NOT NULL,
+    password TEXT NOT NULL
+);
+'''
 def execute_read_query(connection, query):
     cursor = connection.cursor()
     result = None
@@ -56,27 +64,62 @@ def execute_read_query(connection, query):
     except Error as e:
         print(f"The error '{e}' occurred")
 
-class CreateRecipeForm(Form):
-    title = StringField('Recipe Title', [validators.Length(min=4, max=50)])
-    image = StringField('Image Address', [validators.Length(min=10)])
-    link = StringField('Link Address', [validators.Length(min=10)])
-
 @app.route('/')
 def home():
-    
+    cookie = request.cookies.get('userID')
+    print(cookie)
+    if cookie == None:
+        return '<h1> Sorry, you are not logged in, please request access </h1>'
     fetch_query = ''' SELECT * FROM recipes'''
     allrecipes = execute_read_query(conn, fetch_query)
-    
     return render_template("home.html", recipes=allrecipes)
-    
+
+@app.route('/login', methods = ['POST','GET'])
+def login():
+    form = CreateLoginForm()
+    if request.method == "POST":
+        form = CreateLoginForm(request.form)
+        if form.validate():
+            user = form.user.data
+            password = form.password.data
+            user_query = "SELECT * FROM users WHERE user ='"+ user + "'"
+            resp = None
+            try:
+                username = execute_read_query(conn, user_query)
+                if username[0][1] == user and username[0][2] == password:
+                    print('Logged in!')
+                    resp = make_response(redirect(url_for('home')))
+                    resp.set_cookie('userID', user)
+                else:
+                    raise Exception('Invalid Credentials. Please try again')
+                return resp
+            except Exception as e:
+                print(e)
+                return '<h1> Sorry, you are not logged in, please request access </h1>'
+    return render_template('login.html', form=form)
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    form = RegistrationForm()
+    if request.method == 'POST':
+        form = RegistrationForm(request.form)
+        if form.validate():
+            username = form.user.data
+            password = form.password.data
+            insert_user = '''INSERT INTO users (user, password) VALUES (?,?)'''
+            data = (username, password)
+            execute_query(conn, insert_user, data)
+            return redirect(url_for('login'))
+    return render_template('register.html', form=form)
 @app.route('/about/')
 def about():
-    return render_template("about.html")
+    userID = request.cookies.get('userID')
+    return render_template("about.html", userID = userID)
 
 @app.route('/recipe/delete/<id>/', methods=['POST'])
 def delete_recipe(id):
     delete_query = '''DELETE FROM recipes WHERE id = ?'''
-    execute_query(conn,delete_query,(id))
+    execute_query(conn,delete_query,[id])
     return redirect(url_for('home'))
 
 @app.route('/recipe/', methods=['POST', 'GET'])
@@ -104,7 +147,7 @@ def show_recipe(id):
             image = form.image.data
             link = form.link.data
             update_query = f'''UPDATE recipes set title=?, image=?, link=? WHERE id = {id}'''
-            execute_query(conn, update_query, (title, image, link))
+            execute_query(conn, update_query, [title, image, link])
             return redirect(url_for('home'))
     select_query = f'''SELECT * FROM recipes WHERE id={id}'''
     recipe = execute_read_query(conn, select_query)
@@ -115,4 +158,6 @@ if __name__ == '__main__':
   conn = create_connection('recipes.db')
   
   execute_query(conn,create_recipes_table)
+  execute_query(conn,create_user_table)
+
   app.run(debug=True)
