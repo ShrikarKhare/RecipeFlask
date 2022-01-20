@@ -1,10 +1,13 @@
+from re import S
 from socket import create_connection
 from flask import Flask, render_template, request, redirect,url_for,abort, make_response
+from flask_bcrypt import Bcrypt
 from wtforms import Form, StringField, PasswordField, validators
+from itsdangerous import URLSafeSerializer
 import sqlite3
 from sqlite3 import Error
 app = Flask(__name__)
-
+bcrypt = Bcrypt(app)
 def create_connection(path):
     connection = None
     try:
@@ -67,7 +70,6 @@ def execute_read_query(connection, query):
 @app.route('/')
 def home():
     cookie = request.cookies.get('userID')
-    print(cookie)
     if cookie == None:
         return '<h1> Sorry, you are not logged in, please request access </h1>'
     fetch_query = ''' SELECT * FROM recipes'''
@@ -81,7 +83,7 @@ def login():
         form = CreateLoginForm(request.form)
         if form.validate():
             user = form.user.data
-            password = form.password.data
+            password = bcrypt.generate_password_hash(form.password.data).decode('utf-8') #bob
             user_query = "SELECT * FROM users WHERE user ='"+ user + "'"
             resp = None
             try:
@@ -89,7 +91,11 @@ def login():
                 if username[0][1] == user and username[0][2] == password:
                     print('Logged in!')
                     resp = make_response(redirect(url_for('home')))
-                    resp.set_cookie('userID', user)
+                    auth_s = URLSafeSerializer("secret key", "auth")
+                    token = auth_s.dumps({username[0][0]})
+                    data =auth_s.loads(token)
+                    resp.set_cookie('userID', data)
+
                 else:
                     raise Exception('Invalid Credentials. Please try again')
                 return resp
@@ -106,8 +112,9 @@ def register():
         if form.validate():
             username = form.user.data
             password = form.password.data
+            hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
             insert_user = '''INSERT INTO users (user, password) VALUES (?,?)'''
-            data = (username, password)
+            data = (username, hashed)
             execute_query(conn, insert_user, data)
             return redirect(url_for('login'))
     return render_template('register.html', form=form)
