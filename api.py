@@ -1,13 +1,13 @@
 from re import S
 from socket import create_connection
 from flask import Flask, render_template, request, redirect,url_for,abort, make_response
-from flask_bcrypt import Bcrypt
+import bcrypt
 from wtforms import Form, StringField, PasswordField, validators
 from itsdangerous import URLSafeSerializer
 import sqlite3
 from sqlite3 import Error
 app = Flask(__name__)
-bcrypt = Bcrypt(app)
+auth_s = URLSafeSerializer('SUPER SECRET KEY')
 def create_connection(path):
     connection = None
     try:
@@ -74,7 +74,7 @@ def home():
         return '<h1> Sorry, you are not logged in, please request access </h1>'
     fetch_query = ''' SELECT * FROM recipes'''
     allrecipes = execute_read_query(conn, fetch_query)
-    return render_template("home.html", recipes=allrecipes)
+    return render_template("home_users.html", recipes=allrecipes)
 
 @app.route('/login', methods = ['POST','GET'])
 def login():
@@ -83,18 +83,14 @@ def login():
         form = CreateLoginForm(request.form)
         if form.validate():
             user = form.user.data
-            password = bcrypt.generate_password_hash(form.password.data).decode('utf-8') #bob
+            password = form.password.data
             user_query = "SELECT * FROM users WHERE user ='"+ user + "'"
             resp = None
             try:
                 username = execute_read_query(conn, user_query)
-                if username[0][1] == user and username[0][2] == password:
-                    print('Logged in!')
+                if bcrypt.checkpw(password.encode('utf-8'), username[0][2]):
                     resp = make_response(redirect(url_for('home')))
-                    auth_s = URLSafeSerializer("secret key", "auth")
-                    token = auth_s.dumps({username[0][0]})
-                    data =auth_s.loads(token)
-                    resp.set_cookie('userID', data)
+                    resp.set_cookie('userID', str(auth_s.dumps(username[0][0])))
 
                 else:
                     raise Exception('Invalid Credentials. Please try again')
@@ -118,6 +114,7 @@ def register():
             execute_query(conn, insert_user, data)
             return redirect(url_for('login'))
     return render_template('register.html', form=form)
+
 @app.route('/about/')
 def about():
     userID = request.cookies.get('userID')
