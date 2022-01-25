@@ -147,8 +147,8 @@ def show_recipe(id):
     if request.method == 'POST':
         form = CreateRecipeForm(request.form)
         if form.validate():
-            title = form.data.title
-            image = form.data.image
+            title = form.title.data
+            image = form.image.data
             link = form.link.data
             update_query = f'''UPDATE recipes set title=?, image=?, link=? WHERE id = {id}'''
             execute_query(conn, update_query, [title, image, link])
